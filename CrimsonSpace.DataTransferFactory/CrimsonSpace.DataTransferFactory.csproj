@@ -40,7 +40,24 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Attributes\IgnoreUntransferredMembersAttribute.cs" />
+    <Compile Include="Attributes\NonTransferrableMemberAttribute.cs" />
+    <Compile Include="Attributes\TransferAllMembersAttribute.cs" />
+    <Compile Include="Attributes\TransferMemberNameAttribute.cs" />
+    <Compile Include="Attributes\TransferrableMemberAttribute.cs" />
+    <Compile Include="Attributes\TransferrableSubMemberAttribute.cs" />
+    <Compile Include="Attributes\TransferrableTypesAttribute.cs" />
+    <Compile Include="Constants.cs" />
+    <Compile Include="Enums\TransferDirections.cs" />
+    <Compile Include="Exceptions\IncompatibleTypesException.cs" />
+    <Compile Include="Interfaces\ITransferDTO.cs" />
+    <Compile Include="MemberCollection.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="TransferBase.cs" />
+    <Compile Include="TransferConstructor.cs" />
+    <Compile Include="TransferDeconstructor.cs" />
+    <Compile Include="Extensions.cs" />
+    <Compile Include="TransferMemberReport.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
