@@ -13,15 +13,23 @@
 
         protected object dtoObject;
 
+        protected Type dtoParentType;
+
         protected Type dtoType;
 
         protected MemberCollection entityInfo = new MemberCollection();
 
         protected object entityObject;
 
+        protected Type entityParentType;
+
         protected Type entityType;
 
         protected bool ignoreUntransferredMembers;
+
+        protected int allowedSubLevels;
+
+        protected int currentSubLevel;
 
         protected bool transferAllMembers;
 
@@ -88,10 +96,18 @@
 
                     if (subMemberAttribute != null)
                     {
-                        var methodName = subMemberAttribute.IsList ? "ConstructDTOCollection" : "ConstructDTO";
+                        var methodName = subMemberAttribute.IsList ? "ConstructSubDTOCollection" : "ConstructSubDTO";
                         var parameterType = subMemberAttribute.IsList ? dtoFieldType.GetGenericArguments()[0] : dtoFieldType;
-                        MethodInfo constructMethod = typeof(Extensions).GetExtensionMethod(methodName).MakeGenericMethod(parameterType);
-                        entityValue = constructMethod.Invoke(null, new[] { entityProperty.GetValue(entityObject) });
+
+                        if (IsSubLevelAllowed() && !IsParentType(parameterType))
+                        {
+                            MethodInfo constructMethod = typeof(Extensions).GetExtensionMethod(methodName).MakeGenericMethod(parameterType);
+                            entityValue = constructMethod.Invoke(null, new[] { entityProperty.GetValue(entityObject), dtoType, allowedSubLevels, currentSubLevel + 1 });
+                        }
+                        else
+                        {
+                            entityValue = null;
+                        }
                     }
                     else
                     {
@@ -106,10 +122,18 @@
 
                     if (subMemberAttribute != null)
                     {
-                        var methodName = subMemberAttribute.IsList ? "DeconstructDTOCollection" : "DeconstructDTO";
+                        var methodName = subMemberAttribute.IsList ? "DeconstructSubDTOCollection" : "DeconstructSubDTO";
                         var parameterType = subMemberAttribute.IsList ? entityProperty.PropertyType.GetGenericArguments()[0] : entityProperty.PropertyType;
-                        MethodInfo deconstructMethod = typeof(Extensions).GetExtensionMethod(methodName).MakeGenericMethod(parameterType);
-                        dtoValue = deconstructMethod.Invoke(null, new[] { dtoField.GetValue(dtoObject) });
+
+                        if (IsSubLevelAllowed() && !IsParentType(parameterType))
+                        {
+                            MethodInfo deconstructMethod = typeof(Extensions).GetExtensionMethod(methodName).MakeGenericMethod(parameterType);
+                            dtoValue = deconstructMethod.Invoke(null, new[] { dtoField.GetValue(dtoObject), entityType, allowedSubLevels, currentSubLevel + 1 });
+                        }
+                        else
+                        {
+                            dtoValue = null;
+                        }
                     }
                     else
                     {
@@ -155,10 +179,18 @@
 
                     if (subMemberAttribute != null)
                     {
-                        var methodName = subMemberAttribute.IsList ? "ConstructDTOCollection" : "ConstructDTO";
+                        var methodName = subMemberAttribute.IsList ? "ConstructSubDTOCollection" : "ConstructSubDTO";
                         var parameterType = subMemberAttribute.IsList ? dtoFieldType.GetGenericArguments()[0] : dtoFieldType;
-                        MethodInfo constructMethod = typeof(Extensions).GetExtensionMethod(methodName).MakeGenericMethod(parameterType);
-                        entityValue = constructMethod.Invoke(null, new[] { entityField.GetValue(entityObject) });
+
+                        if (IsSubLevelAllowed() && !IsParentType(parameterType))
+                        {
+                            MethodInfo constructMethod = typeof(Extensions).GetExtensionMethod(methodName).MakeGenericMethod(parameterType);
+                            entityValue = constructMethod.Invoke(null, new[] { entityField.GetValue(entityObject), dtoType, allowedSubLevels, currentSubLevel + 1 });
+                        }
+                        else
+                        {
+                            entityValue = null;
+                        }
                     }
                     else
                     {
@@ -173,10 +205,18 @@
 
                     if (subMemberAttribute != null)
                     {
-                        var methodName = subMemberAttribute.IsList ? "DeconstructDTOCollection" : "DeconstructDTO";
+                        var methodName = subMemberAttribute.IsList ? "DeconstructSubDTOCollection" : "DeconstructSubDTO";
                         var parameterType = subMemberAttribute.IsList ? entityField.FieldType.GetGenericArguments()[0] : entityField.FieldType;
-                        MethodInfo deconstructMethod = typeof(Extensions).GetExtensionMethod(methodName).MakeGenericMethod(parameterType); ;
-                        dtoValue = deconstructMethod.Invoke(null, new[] { dtoField.GetValue(dtoObject) });
+
+                        if (IsSubLevelAllowed() && !IsParentType(parameterType))
+                        {
+                            MethodInfo deconstructMethod = typeof(Extensions).GetExtensionMethod(methodName).MakeGenericMethod(parameterType); ;
+                            dtoValue = deconstructMethod.Invoke(null, new[] { dtoField.GetValue(dtoObject), entityType, allowedSubLevels, currentSubLevel + 1 });
+                        }
+                        else
+                        {
+                            dtoValue = null;
+                        }
                     }
                     else
                     {
@@ -222,10 +262,18 @@
 
                     if (subMemberAttribute != null)
                     {
-                        var methodName = subMemberAttribute.IsList ? "ConstructDTOCollection" : "ConstructDTO";
+                        var methodName = subMemberAttribute.IsList ? "ConstructSubDTOCollection" : "ConstructSubDTO";
                         var parameterType = subMemberAttribute.IsList ? dtoPropertyType.GetGenericArguments()[0] : dtoPropertyType;
-                        MethodInfo constructMethod = typeof(Extensions).GetExtensionMethod(methodName).MakeGenericMethod(parameterType);
-                        entityValue = constructMethod.Invoke(null, new[] { entityField.GetValue(entityObject) });
+
+                        if (IsSubLevelAllowed() && !IsParentType(parameterType))
+                        {
+                            MethodInfo constructMethod = typeof(Extensions).GetExtensionMethod(methodName).MakeGenericMethod(parameterType);
+                            entityValue = constructMethod.Invoke(null, new[] { entityField.GetValue(entityObject), dtoType, allowedSubLevels, currentSubLevel + 1 });
+                        }
+                        else
+                        {
+                            entityValue = null;
+                        }
                     }
                     else
                     {
@@ -240,10 +288,18 @@
 
                     if (subMemberAttribute != null)
                     {
-                        var methodName = subMemberAttribute.IsList ? "DeconstructDTOCollection" : "DeconstructDTO";
+                        var methodName = subMemberAttribute.IsList ? "DeconstructSubDTOCollection" : "DeconstructSubDTO";
                         var parameterType = subMemberAttribute.IsList ? entityField.FieldType.GetGenericArguments()[0] : entityField.FieldType;
-                        MethodInfo deconstructMethod = typeof(Extensions).GetExtensionMethod(methodName).MakeGenericMethod(parameterType);
-                        dtoValue = deconstructMethod.Invoke(null, new[] { dtoProperty.GetValue(dtoObject) });
+
+                        if (IsSubLevelAllowed() && !IsParentType(parameterType))
+                        {
+                            MethodInfo deconstructMethod = typeof(Extensions).GetExtensionMethod(methodName).MakeGenericMethod(parameterType);
+                            dtoValue = deconstructMethod.Invoke(null, new[] { dtoProperty.GetValue(dtoObject), entityType, allowedSubLevels, currentSubLevel + 1 });
+                        }
+                        else
+                        {
+                            dtoValue = null;
+                        }
                     }
                     else
                     {
@@ -262,6 +318,18 @@
             }
 
             return true;
+        }
+
+        private bool IsParentType(Type parameterType)
+        {
+            if (transferDirection == TransferDirections.EntityToDto)
+            {
+                return dtoParentType == parameterType;
+            }
+            else
+            {
+                return entityParentType == parameterType;
+            }
         }
 
         protected bool DtoPropertyToEntityProperty(PropertyInfo dtoProperty)
@@ -289,10 +357,18 @@
 
                     if (subMemberAttribute != null)
                     {
-                        var methodName = subMemberAttribute.IsList ? "ConstructDTOCollection" : "ConstructDTO";
+                        var methodName = subMemberAttribute.IsList ? "ConstructSubDTOCollection" : "ConstructSubDTO";
                         var parameterType = subMemberAttribute.IsList ? dtoPropertyType.GetGenericArguments()[0] : dtoPropertyType;
-                        MethodInfo constructMethod = typeof(Extensions).GetExtensionMethod(methodName).MakeGenericMethod(parameterType);
-                        entityValue = constructMethod.Invoke(null, new[] { entityProperty.GetValue(entityObject) });
+
+                        if (IsSubLevelAllowed() && !IsParentType(parameterType))
+                        {
+                            MethodInfo constructMethod = typeof(Extensions).GetExtensionMethod(methodName).MakeGenericMethod(parameterType);
+                            entityValue = constructMethod.Invoke(null, new[] { entityProperty.GetValue(entityObject), dtoType, allowedSubLevels, currentSubLevel + 1 });
+                        }
+                        else
+                        {
+                            entityValue = null;
+                        }
                     }
                     else
                     {
@@ -307,10 +383,18 @@
 
                     if (subMemberAttribute != null)
                     {
-                        var methodName = subMemberAttribute.IsList ? "DeconstructDTOCollection" : "DeconstructDTO";
+                        var methodName = subMemberAttribute.IsList ? "DeconstructSubDTOCollection" : "DeconstructSubDTO";
                         var parameterType = subMemberAttribute.IsList ? entityProperty.PropertyType.GetGenericArguments()[0] : entityProperty.PropertyType;
-                        MethodInfo deconstructMethod = typeof(Extensions).GetExtensionMethod(methodName).MakeGenericMethod(parameterType);
-                        dtoValue = deconstructMethod.Invoke(null, new[] { dtoProperty.GetValue(dtoObject) });
+
+                        if (IsSubLevelAllowed() && !IsParentType(parameterType))
+                        {
+                            MethodInfo deconstructMethod = typeof(Extensions).GetExtensionMethod(methodName).MakeGenericMethod(parameterType);
+                            dtoValue = deconstructMethod.Invoke(null, new[] { dtoProperty.GetValue(dtoObject), entityType, allowedSubLevels, currentSubLevel + 1 });
+                        }
+                        else
+                        {
+                            dtoValue = null;
+                        }
                     }
                     else
                     {
@@ -329,6 +413,11 @@
             }
 
             return true;
+        }
+
+        private bool IsSubLevelAllowed()
+        {
+            return currentSubLevel < allowedSubLevels;
         }
 
         protected string GetTransferMemberName(MemberInfo memberInfo)
@@ -354,6 +443,40 @@
         }
 
         protected bool IsTransferrableMember(MemberInfo memberInfo)
+        {
+            bool isNonTransferrable = memberInfo.GetCustomAttribute(typeof(NonTransferrableMemberAttribute)) != null;
+            bool isTransferrable = memberInfo.GetCustomAttribute(typeof(TransferrableMemberAttribute)) != null;
+            bool isSubMember = memberInfo.GetCustomAttribute(typeof(TransferrableSubMemberAttribute)) != null;
+            bool isValidForDirection = false;
+
+            if (transferDirection == TransferDirections.DtoToEntity)
+            {
+                isValidForDirection = memberInfo.GetCustomAttribute(typeof(TransferToDtoOnlyAttribute)) == null;
+            }
+            else if (transferDirection == TransferDirections.EntityToDto)
+            {
+                isValidForDirection = memberInfo.GetCustomAttribute(typeof(TransferToEntityOnlyAttribute)) == null;
+            }
+
+            if (!isValidForDirection)
+            {
+                return false;
+            }
+            else if (transferAllMembers && isNonTransferrable)
+            {
+                return false;
+            }
+            else if (isSubMember || isTransferrable || transferAllMembers)
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        private bool DtoToEntityTransferCheck(MemberInfo memberInfo)
         {
             bool nonTransferrable = memberInfo.GetCustomAttribute(typeof(NonTransferrableMemberAttribute)) != null;
             bool transferrable = memberInfo.GetCustomAttribute(typeof(TransferrableMemberAttribute)) != null;

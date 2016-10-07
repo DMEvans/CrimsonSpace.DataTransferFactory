@@ -40,9 +40,11 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Attributes\TransferToDtoOnlyAttribute.cs" />
     <Compile Include="Attributes\IgnoreUntransferredMembersAttribute.cs" />
     <Compile Include="Attributes\NonTransferrableMemberAttribute.cs" />
     <Compile Include="Attributes\TransferAllMembersAttribute.cs" />
+    <Compile Include="Attributes\TransferToEntityOnlyAttribute.cs" />
     <Compile Include="Attributes\TransferMemberNameAttribute.cs" />
     <Compile Include="Attributes\TransferrableMemberAttribute.cs" />
     <Compile Include="Attributes\TransferrableSubMemberAttribute.cs" />

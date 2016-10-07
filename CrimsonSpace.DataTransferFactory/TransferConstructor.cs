@@ -6,11 +6,30 @@
     {
         #region Constructors
 
-        internal TransferConstructor(object sourceObject) : base()
+        internal TransferConstructor(object sourceObject, int allowedSubLevels) : base()
         {
             entityType = sourceObject.GetType();
-            this.entityObject = sourceObject;
-            this.dtoType = typeof(T);
+            dtoParentType = null;
+            entityObject = sourceObject;
+            dtoType = typeof(T);
+
+            this.allowedSubLevels = allowedSubLevels;
+            currentSubLevel = 0;
+
+            InitialiseMemberCollections();
+            SetTransferAllMembers();
+            CheckForTransferCompatibility();
+        }
+
+        internal TransferConstructor(object sourceObject, Type parentType, int allowedSubLevels, int currentSubLevel) : base()
+        {
+            entityType = sourceObject.GetType();
+            dtoParentType = parentType;
+            entityObject = sourceObject;
+            dtoType = typeof(T);
+
+            this.allowedSubLevels = allowedSubLevels;
+            this.currentSubLevel = currentSubLevel;
 
             InitialiseMemberCollections();
             SetTransferAllMembers();

@@ -3,9 +3,10 @@
     /// <summary>
     /// Inidicates the direction of data transfer between the DTO and the entity
     /// </summary>
-    internal enum TransferDirections
+    public enum TransferDirections
     {
         DtoToEntity,
-        EntityToDto
+        EntityToDto,
+        Both
     }
 }
