@@ -5,78 +5,87 @@
     using System.Linq;
     using System.Reflection;
 
+    /// <summary>
+    /// Extension methods
+    /// </summary>
     public static class Extensions
     {
-        public static T DeconstructDTO<T>(this ITransferDTO source, int allowedSubLevels = 1) where T : class
+        ///// <summary>
+        ///// Deconstructs a single DTO object.
+        ///// </summary>
+        ///// <typeparam name="T">The output type from the deconstruction</typeparam>
+        ///// <param name="source">The source.</param>
+        ///// <param name="allowedSubLevels">The number of allowed sub levels.</param>
+        ///// <returns>The deconstructed object</returns>
+        //public static T DeconstructDTO<T>(this ITransferDTO source) where T : class
+        //{
+        //    var transferWorker = new TransferDeconstructor<T>(source);
+        //    return transferWorker.Deconstruct();
+        //}
+
+        /// <summary>
+        /// Deconstructs a single sub DTO object.
+        /// </summary>
+        /// <typeparam name="T">The output type from the deconstruction</typeparam>
+        /// <param name="source">The source.</param>
+        /// <param name="parentType">Type of the parent.</param>
+        /// <param name="allowedSubLevels">The number of allowed sub levels.</param>
+        /// <param name="currentSubLevel">The current sub level.</param>
+        /// <returns>The deconstructed object</returns>
+        public static T DeconstructDTO<T>(this ITransferDTO source, List<Type> parentTypes = null) where T : class
         {
-            var transferWorker = new TransferDeconstructor<T>(source, allowedSubLevels);
+            var transferWorker = new TransferDeconstructor<T>(source, parentTypes);
             return transferWorker.Deconstruct();
         }
 
-        internal static T DeconstructSubDTO<T>(this ITransferDTO source, Type parentType, int allowedSubLevels, int currentSubLevel) where T : class
-        {
-            var transferWorker = new TransferDeconstructor<T>(source, parentType, allowedSubLevels, currentSubLevel);
-            return transferWorker.Deconstruct();
-        }
+        ///// <summary>
+        ///// Constructs the DTO from a source object.
+        ///// </summary>
+        ///// <typeparam name="T">The DTO object type</typeparam>
+        ///// <param name="source">The source.</param>
+        ///// <param name="allowedSubLevels">The number of allowed sub levels.</param>
+        ///// <returns>The constructed DTO object</returns>
+        //public static T ConstructDTO<T>(this object source) where T : class, ITransferDTO
+        //{
+        //    var transferWorker = new TransferConstructor<T>(source);
+        //    return transferWorker.Construct();
+        //}
 
-        public static T ConstructDTO<T>(this object source, int allowedSubLevels = 1) where T : class, ITransferDTO
+        /// <summary>
+        /// Constructs the sub DTO from a source object.
+        /// </summary>
+        /// <typeparam name="T">The DTO object type</typeparam>
+        /// <param name="source">The source.</param>
+        /// <param name="parentType">Type of the parent.</param>
+        /// <param name="allowedSubLevels">The number of allowed sub levels.</param>
+        /// <param name="currentSubLevel">The current sub level.</param>
+        /// <returns></returns>
+        public static T ConstructDTO<T>(this object source, List<Type> parentTypes = null) where T : class, ITransferDTO
         {
-            var transferWorker = new TransferConstructor<T>(source, allowedSubLevels);
+            var transferWorker = new TransferConstructor<T>(source, parentTypes);
             return transferWorker.Construct();
         }
 
-        internal static T ConstructSubDTO<T>(this object source, Type parentType, int allowedSubLevels, int currentSubLevel) where T : class, ITransferDTO
-        {
-            var transferWorker = new TransferConstructor<T>(source, parentType, allowedSubLevels, currentSubLevel);
-            return transferWorker.Construct();
-        }
-
-        public static IEnumerable<T> ConstructDTOCollection<T>(this IEnumerable<object> sourceCollection, int allowedSubLevels = 1) where T : class, ITransferDTO
+        public static IEnumerable<T> ConstructDTOCollection<T>(this IEnumerable<object> sourceCollection, List<Type> parentTypes = null) where T : class, ITransferDTO
         {
             var returnList = new List<T>();
 
             foreach (var sourceObject in sourceCollection)
             {
-                var transferWorker = new TransferConstructor<T>(sourceObject, allowedSubLevels);
+                var transferWorker = new TransferConstructor<T>(sourceObject, parentTypes);
                 returnList.Add(transferWorker.Construct());
             }
 
             return returnList;
         }
 
-        internal static IEnumerable<T> ConstructSubDTOCollection<T>(this IEnumerable<object> sourceCollection, Type parentType, int allowedSubLevels, int currentSubLevel) where T : class, ITransferDTO
+        public static IEnumerable<T> DeconstructDTOCollection<T>(this IEnumerable<ITransferDTO> sourceCollection, List<Type> parentTypes = null) where T : class
         {
             var returnList = new List<T>();
 
             foreach (var sourceObject in sourceCollection)
             {
-                var transferWorker = new TransferConstructor<T>(sourceObject, parentType, allowedSubLevels, currentSubLevel);
-                returnList.Add(transferWorker.Construct());
-            }
-
-            return returnList;
-        }
-
-        public static IEnumerable<T> DeconstructDTOCollection<T>(this IEnumerable<ITransferDTO> sourceCollection, int allowedSubLevels = 1) where T : class
-        {
-            var returnList = new List<T>();
-
-            foreach (var sourceObject in sourceCollection)
-            {
-                var transferWorker = new TransferDeconstructor<T>(sourceObject, allowedSubLevels);
-                returnList.Add(transferWorker.Deconstruct());
-            }
-
-            return returnList;
-        }
-
-        internal static IEnumerable<T> DeconstructSubDTOCollection<T>(this IEnumerable<ITransferDTO> sourceCollection, Type parentType, int allowedSubLevels, int subLevel) where T : class
-        {
-            var returnList = new List<T>();
-
-            foreach (var sourceObject in sourceCollection)
-            {
-                var transferWorker = new TransferDeconstructor<T>(sourceObject, parentType, allowedSubLevels, subLevel);
+                var transferWorker = new TransferDeconstructor<T>(sourceObject, parentTypes);
                 returnList.Add(transferWorker.Deconstruct());
             }
 

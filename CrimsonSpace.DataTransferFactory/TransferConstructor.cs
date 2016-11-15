@@ -1,50 +1,67 @@
 ﻿namespace CrimsonSpace.DataTransferFactory
 {
     using System;
+    using System.Collections.Generic;
+    using System.Linq;
 
+    /// <summary>
+    /// Class providing functionality for transferring from entity objects to data transfer objects
+    /// </summary>
+    /// <typeparam name="T">The data transfer object type</typeparam>
+    /// <seealso cref="CrimsonSpace.DataTransferFactory.TransferBase{T}" />
     internal class TransferConstructor<T> : TransferBase<T> where T : class, ITransferDTO
     {
         #region Constructors
 
-        internal TransferConstructor(object sourceObject, int allowedSubLevels) : base()
+        /// <summary>
+        /// Initializes a new instance of the <see cref="TransferConstructor{T}"/> class.
+        /// </summary>
+        /// <param name="sourceObject">The source object.</param>
+        /// <param name="parentTypes">The parent types.</param>
+        internal TransferConstructor(object sourceObject, List<Type> parentTypes = null) : base()
         {
-            entityType = sourceObject.GetType();
-            dtoParentType = null;
             entityObject = sourceObject;
             dtoType = typeof(T);
 
-            this.allowedSubLevels = allowedSubLevels;
-            currentSubLevel = 0;
+            if (sourceObject != null)
+            {
+                entityType = sourceObject.GetType();
 
-            InitialiseMemberCollections();
-            SetTransferAllMembers();
-            CheckForTransferCompatibility();
-        }
+                if (parentTypes == null)
+                {
+                    dtoParentTypes = new List<Type>();
+                }
+                else
+                {
+                    dtoParentTypes = parentTypes.ToList();
+                }
 
-        internal TransferConstructor(object sourceObject, Type parentType, int allowedSubLevels, int currentSubLevel) : base()
-        {
-            entityType = sourceObject.GetType();
-            dtoParentType = parentType;
-            entityObject = sourceObject;
-            dtoType = typeof(T);
+                dtoParentTypes.Add(dtoType);
 
-            this.allowedSubLevels = allowedSubLevels;
-            this.currentSubLevel = currentSubLevel;
-
-            InitialiseMemberCollections();
-            SetTransferAllMembers();
-            CheckForTransferCompatibility();
+                InitialiseMemberCollections();
+                SetTransferAllMembers();
+                CheckForTransferCompatibility();
+            }
         }
 
         #endregion Constructors
 
         #region Public Methods
 
+        /// <summary>
+        /// Constructs the data transfer object from the entity object.
+        /// </summary>
+        /// <returns>Data transfer object</returns>
         internal T Construct()
         {
             transferDirection = TransferDirections.EntityToDto;
             dtoObject = (T)Activator.CreateInstance(dtoType);
-            TransferMembers();
+
+            if (entityObject != null)
+            {
+                TransferMembers();
+            }
+
             return dtoObject as T;
         }
 

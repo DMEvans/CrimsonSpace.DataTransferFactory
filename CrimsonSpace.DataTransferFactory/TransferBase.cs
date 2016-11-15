@@ -5,42 +5,85 @@
     using System.Linq;
     using System.Reflection;
 
+    /// <summary>
+    /// The base transfer class for both directions
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
     internal abstract class TransferBase<T>
     {
         #region Private Members
 
+        /// <summary>
+        /// The member information of the data transfer object
+        /// </summary>
         protected MemberCollection dtoInfo = new MemberCollection();
 
+        /// <summary>
+        /// The data transfer object
+        /// </summary>
         protected object dtoObject;
 
-        protected Type dtoParentType;
+        /// <summary>
+        /// The parent types from which the data transfer object has been extracted - this is used to prevent deconstruction of circular references
+        /// </summary>
+        protected List<Type> dtoParentTypes;
 
+        /// <summary>
+        /// The type of data transfer object
+        /// </summary>
         protected Type dtoType;
 
+        /// <summary>
+        /// The member information of the entity object
+        /// </summary>
         protected MemberCollection entityInfo = new MemberCollection();
 
+        /// <summary>
+        /// The entity object
+        /// </summary>
         protected object entityObject;
 
-        protected Type entityParentType;
+        /// <summary>
+        /// The parent types from which the entity object has been extracted - this is used to prevent construction of circular references
+        /// </summary>
+        protected List<Type> entityParentTypes;
 
+        /// <summary>
+        /// The type of the entity object
+        /// </summary>
         protected Type entityType;
 
+        /// <summary>
+        /// Value indicating whether untransferred members should be ignored - when false an exception will be raised
+        /// </summary>
         protected bool ignoreUntransferredMembers;
 
-        protected int allowedSubLevels;
-
-        protected int currentSubLevel;
-
+        /// <summary>
+        /// Value indicating whether all members should be transferred unless specifically marked with the NonTransferrableMember attribue
+        /// </summary>
         protected bool transferAllMembers;
 
+        /// <summary>
+        /// The transfer direction
+        /// </summary>
         protected TransferDirections transferDirection;
 
+        /// <summary>
+        /// The transfer report
+        /// </summary>
         protected List<TransferMemberReport> transferReport = new List<TransferMemberReport>();
 
         #endregion Private Members
 
         #region Private Methods
 
+        /// <summary>
+        /// Adds to transfer report.
+        /// </summary>
+        /// <param name="memberName">Name of the member.</param>
+        /// <param name="transferName">Name of the transfer.</param>
+        /// <param name="message">The message.</param>
+        /// <param name="success">if set to <c>true</c> [success].</param>
         protected void AddToTransferReport(string memberName, string transferName, string message, bool success)
         {
             var report = new TransferMemberReport()
@@ -54,6 +97,10 @@
             transferReport.Add(report);
         }
 
+        /// <summary>
+        /// Checks for transfer compatibility.
+        /// </summary>
+        /// <exception cref="IncompatibleTypesException"></exception>
         protected void CheckForTransferCompatibility()
         {
             var transferrableTypesAttribute = dtoType.GetCustomAttribute(typeof(TransferrableTypesAttribute)) as TransferrableTypesAttribute;
@@ -71,6 +118,11 @@
             }
         }
 
+        /// <summary>
+        /// Provides bi-directional transfer between a field in the data transfer object and a property in the entity object
+        /// </summary>
+        /// <param name="dtoField">The data transfer object field field.</param>
+        /// <returns>Success</returns>
         protected bool DtoFieldFromEntityProperty(FieldInfo dtoField)
         {
             string transferName = GetTransferMemberName(dtoField);
@@ -96,17 +148,18 @@
 
                     if (subMemberAttribute != null)
                     {
-                        var methodName = subMemberAttribute.IsList ? "ConstructSubDTOCollection" : "ConstructSubDTO";
+                        var methodName = subMemberAttribute.IsList ? "ConstructDTOCollection" : "ConstructDTO";
                         var parameterType = subMemberAttribute.IsList ? dtoFieldType.GetGenericArguments()[0] : dtoFieldType;
 
-                        if (IsSubLevelAllowed() && !IsParentType(parameterType))
+                        if (!IsParentType(parameterType))
                         {
                             MethodInfo constructMethod = typeof(Extensions).GetExtensionMethod(methodName).MakeGenericMethod(parameterType);
-                            entityValue = constructMethod.Invoke(null, new[] { entityProperty.GetValue(entityObject), dtoType, allowedSubLevels, currentSubLevel + 1 });
+                            entityValue = constructMethod.Invoke(null, new[] { entityProperty.GetValue(entityObject), dtoParentTypes });
                         }
                         else
                         {
                             entityValue = null;
+                            AddToTransferReport(entityProperty.Name, transferName, Constants.TransferSkipped, true);
                         }
                     }
                     else
@@ -114,7 +167,15 @@
                         entityValue = entityProperty.GetValue(entityObject);
                     }
 
-                    dtoField.SetValue(dtoObject, entityValue);
+                    if (entityValue != null)
+                    {
+                        dtoField.SetValue(dtoObject, entityValue);
+                        AddToTransferReport(entityProperty.Name, transferName, Constants.TransferCompleted, true);
+                    }
+                    else
+                    {
+                        AddToTransferReport(entityProperty.Name, transferName, Constants.ValueWasNull, true);
+                    }
                 }
                 else
                 {
@@ -122,17 +183,18 @@
 
                     if (subMemberAttribute != null)
                     {
-                        var methodName = subMemberAttribute.IsList ? "DeconstructSubDTOCollection" : "DeconstructSubDTO";
+                        var methodName = subMemberAttribute.IsList ? "DeconstructDTOCollection" : "DeconstructDTO";
                         var parameterType = subMemberAttribute.IsList ? entityProperty.PropertyType.GetGenericArguments()[0] : entityProperty.PropertyType;
 
-                        if (IsSubLevelAllowed() && !IsParentType(parameterType))
+                        if (!IsParentType(parameterType))
                         {
                             MethodInfo deconstructMethod = typeof(Extensions).GetExtensionMethod(methodName).MakeGenericMethod(parameterType);
-                            dtoValue = deconstructMethod.Invoke(null, new[] { dtoField.GetValue(dtoObject), entityType, allowedSubLevels, currentSubLevel + 1 });
+                            dtoValue = deconstructMethod.Invoke(null, new[] { dtoField.GetValue(dtoObject), entityParentTypes });
                         }
                         else
                         {
                             dtoValue = null;
+                            AddToTransferReport(dtoField.Name, transferName, Constants.TransferSkipped, true);
                         }
                     }
                     else
@@ -140,10 +202,16 @@
                         dtoValue = dtoField.GetValue(dtoObject);
                     }
 
-                    entityProperty.SetValue(entityObject, dtoValue);
+                    if (dtoValue != null)
+                    {
+                        entityProperty.SetValue(entityObject, dtoValue);
+                        AddToTransferReport(dtoField.Name, transferName, Constants.TransferCompleted, true);
+                    }
+                    else
+                    {
+                        AddToTransferReport(dtoField.Name, transferName, Constants.ValueWasNull, true);
+                    }
                 }
-
-                AddToTransferReport(dtoField.Name, transferName, Constants.TRANSFER_COMPLETED, true);
             }
             catch (Exception ex)
             {
@@ -154,6 +222,11 @@
             return true;
         }
 
+        /// <summary>
+        /// Provides bi-directional transfer between a field in the data transfer object and a field in the entity object
+        /// </summary>
+        /// <param name="dtoField">The data transfer object field.</param>
+        /// <returns>Success</returns>
         protected bool DtoFieldToEntityField(FieldInfo dtoField)
         {
             string transferName = GetTransferMemberName(dtoField);
@@ -179,17 +252,18 @@
 
                     if (subMemberAttribute != null)
                     {
-                        var methodName = subMemberAttribute.IsList ? "ConstructSubDTOCollection" : "ConstructSubDTO";
+                        var methodName = subMemberAttribute.IsList ? "ConstructDTOCollection" : "ConstructDTO";
                         var parameterType = subMemberAttribute.IsList ? dtoFieldType.GetGenericArguments()[0] : dtoFieldType;
 
-                        if (IsSubLevelAllowed() && !IsParentType(parameterType))
+                        if (!IsParentType(parameterType))
                         {
                             MethodInfo constructMethod = typeof(Extensions).GetExtensionMethod(methodName).MakeGenericMethod(parameterType);
-                            entityValue = constructMethod.Invoke(null, new[] { entityField.GetValue(entityObject), dtoType, allowedSubLevels, currentSubLevel + 1 });
+                            entityValue = constructMethod.Invoke(null, new[] { entityField.GetValue(entityObject), dtoParentTypes });
                         }
                         else
                         {
                             entityValue = null;
+                            AddToTransferReport(entityField.Name, transferName, Constants.TransferSkipped, true);
                         }
                     }
                     else
@@ -197,7 +271,15 @@
                         entityValue = entityField.GetValue(entityObject);
                     }
 
-                    dtoField.SetValue(dtoObject, entityValue);
+                    if (entityValue != null)
+                    {
+                        dtoField.SetValue(dtoObject, entityValue);
+                        AddToTransferReport(entityField.Name, transferName, Constants.TransferCompleted, true);
+                    }
+                    else
+                    {
+                        AddToTransferReport(entityField.Name, transferName, Constants.ValueWasNull, true);
+                    }
                 }
                 else
                 {
@@ -205,17 +287,18 @@
 
                     if (subMemberAttribute != null)
                     {
-                        var methodName = subMemberAttribute.IsList ? "DeconstructSubDTOCollection" : "DeconstructSubDTO";
+                        var methodName = subMemberAttribute.IsList ? "DeconstructDTOCollection" : "DeconstructDTO";
                         var parameterType = subMemberAttribute.IsList ? entityField.FieldType.GetGenericArguments()[0] : entityField.FieldType;
 
-                        if (IsSubLevelAllowed() && !IsParentType(parameterType))
+                        if (!IsParentType(parameterType))
                         {
                             MethodInfo deconstructMethod = typeof(Extensions).GetExtensionMethod(methodName).MakeGenericMethod(parameterType); ;
-                            dtoValue = deconstructMethod.Invoke(null, new[] { dtoField.GetValue(dtoObject), entityType, allowedSubLevels, currentSubLevel + 1 });
+                            dtoValue = deconstructMethod.Invoke(null, new[] { dtoField.GetValue(dtoObject), entityParentTypes });
                         }
                         else
                         {
                             dtoValue = null;
+                            AddToTransferReport(dtoField.Name, transferName, Constants.TransferSkipped, true);
                         }
                     }
                     else
@@ -223,10 +306,16 @@
                         dtoValue = dtoField.GetValue(dtoObject);
                     }
 
-                    entityField.SetValue(entityObject, dtoValue);
+                    if (dtoValue != null)
+                    {
+                        entityField.SetValue(entityObject, dtoValue);
+                        AddToTransferReport(dtoField.Name, transferName, Constants.TransferCompleted, true);
+                    }
+                    else
+                    {
+                        AddToTransferReport(dtoField.Name, transferName, Constants.ValueWasNull, true);
+                    }
                 }
-
-                AddToTransferReport(dtoField.Name, transferName, Constants.TRANSFER_COMPLETED, true);
             }
             catch (Exception ex)
             {
@@ -237,6 +326,11 @@
             return true;
         }
 
+        /// <summary>
+        /// Provides bi-directional transfer between a property in the data transfer object and a field in the entity object
+        /// </summary>
+        /// <param name="dtoProperty">The data transfer object property.</param>
+        /// <returns>Success</returns>
         protected bool DtoPropertyToEntityField(PropertyInfo dtoProperty)
         {
             string transferName = GetTransferMemberName(dtoProperty);
@@ -262,17 +356,18 @@
 
                     if (subMemberAttribute != null)
                     {
-                        var methodName = subMemberAttribute.IsList ? "ConstructSubDTOCollection" : "ConstructSubDTO";
+                        var methodName = subMemberAttribute.IsList ? "ConstructDTOCollection" : "ConstructDTO";
                         var parameterType = subMemberAttribute.IsList ? dtoPropertyType.GetGenericArguments()[0] : dtoPropertyType;
 
-                        if (IsSubLevelAllowed() && !IsParentType(parameterType))
+                        if (!IsParentType(parameterType))
                         {
                             MethodInfo constructMethod = typeof(Extensions).GetExtensionMethod(methodName).MakeGenericMethod(parameterType);
-                            entityValue = constructMethod.Invoke(null, new[] { entityField.GetValue(entityObject), dtoType, allowedSubLevels, currentSubLevel + 1 });
+                            entityValue = constructMethod.Invoke(null, new[] { entityField.GetValue(entityObject), dtoParentTypes });
                         }
                         else
                         {
                             entityValue = null;
+                            AddToTransferReport(dtoProperty.Name, transferName, Constants.TransferSkipped, true);
                         }
                     }
                     else
@@ -280,7 +375,15 @@
                         entityValue = entityField.GetValue(entityObject);
                     }
 
-                    dtoProperty.SetValue(dtoObject, entityValue);
+                    if (entityValue != null)
+                    {
+                        dtoProperty.SetValue(dtoObject, entityValue);
+                        AddToTransferReport(entityField.Name, transferName, Constants.TransferCompleted, true);
+                    }
+                    else
+                    {
+                        AddToTransferReport(entityField.Name, transferName, Constants.ValueWasNull, true);
+                    }
                 }
                 else
                 {
@@ -288,17 +391,18 @@
 
                     if (subMemberAttribute != null)
                     {
-                        var methodName = subMemberAttribute.IsList ? "DeconstructSubDTOCollection" : "DeconstructSubDTO";
+                        var methodName = subMemberAttribute.IsList ? "DeconstructDTOCollection" : "DeconstructDTO";
                         var parameterType = subMemberAttribute.IsList ? entityField.FieldType.GetGenericArguments()[0] : entityField.FieldType;
 
-                        if (IsSubLevelAllowed() && !IsParentType(parameterType))
+                        if (!IsParentType(parameterType))
                         {
                             MethodInfo deconstructMethod = typeof(Extensions).GetExtensionMethod(methodName).MakeGenericMethod(parameterType);
-                            dtoValue = deconstructMethod.Invoke(null, new[] { dtoProperty.GetValue(dtoObject), entityType, allowedSubLevels, currentSubLevel + 1 });
+                            dtoValue = deconstructMethod.Invoke(null, new[] { dtoProperty.GetValue(dtoObject), entityParentTypes });
                         }
                         else
                         {
                             dtoValue = null;
+                            AddToTransferReport(dtoProperty.Name, transferName, Constants.TransferSkipped, true);
                         }
                     }
                     else
@@ -306,10 +410,16 @@
                         dtoValue = dtoProperty.GetValue(dtoObject);
                     }
 
-                    entityField.SetValue(entityObject, dtoValue);
+                    if (dtoValue != null)
+                    {
+                        entityField.SetValue(entityObject, dtoValue);
+                        AddToTransferReport(dtoProperty.Name, transferName, Constants.TransferCompleted, true);
+                    }
+                    else
+                    {
+                        AddToTransferReport(dtoProperty.Name, transferName, Constants.ValueWasNull, true);
+                    }
                 }
-
-                AddToTransferReport(dtoProperty.Name, transferName, Constants.TRANSFER_COMPLETED, true);
             }
             catch (Exception ex)
             {
@@ -320,18 +430,11 @@
             return true;
         }
 
-        private bool IsParentType(Type parameterType)
-        {
-            if (transferDirection == TransferDirections.EntityToDto)
-            {
-                return dtoParentType == parameterType;
-            }
-            else
-            {
-                return entityParentType == parameterType;
-            }
-        }
-
+        /// <summary>
+        /// Provides bi-directional transfer between a property in the data transfer object and a property in the entity object
+        /// </summary>
+        /// <param name="dtoProperty">The data transfer object property.</param>
+        /// <returns>Success</returns>
         protected bool DtoPropertyToEntityProperty(PropertyInfo dtoProperty)
         {
             string transferName = GetTransferMemberName(dtoProperty);
@@ -357,17 +460,18 @@
 
                     if (subMemberAttribute != null)
                     {
-                        var methodName = subMemberAttribute.IsList ? "ConstructSubDTOCollection" : "ConstructSubDTO";
+                        var methodName = subMemberAttribute.IsList ? "ConstructDTOCollection" : "ConstructDTO";
                         var parameterType = subMemberAttribute.IsList ? dtoPropertyType.GetGenericArguments()[0] : dtoPropertyType;
 
-                        if (IsSubLevelAllowed() && !IsParentType(parameterType))
+                        if (!IsParentType(parameterType))
                         {
                             MethodInfo constructMethod = typeof(Extensions).GetExtensionMethod(methodName).MakeGenericMethod(parameterType);
-                            entityValue = constructMethod.Invoke(null, new[] { entityProperty.GetValue(entityObject), dtoType, allowedSubLevels, currentSubLevel + 1 });
+                            entityValue = constructMethod.Invoke(null, new[] { entityProperty.GetValue(entityObject), dtoParentTypes });
                         }
                         else
                         {
                             entityValue = null;
+                            AddToTransferReport(entityProperty.Name, transferName, Constants.TransferSkipped, true);
                         }
                     }
                     else
@@ -375,7 +479,15 @@
                         entityValue = entityProperty.GetValue(entityObject);
                     }
 
-                    dtoProperty.SetValue(dtoObject, entityValue);
+                    if (entityValue != null)
+                    {
+                        dtoProperty.SetValue(dtoObject, entityValue);
+                        AddToTransferReport(entityProperty.Name, transferName, Constants.TransferCompleted, true);
+                    }
+                    else
+                    {
+                        AddToTransferReport(entityProperty.Name, transferName, Constants.ValueWasNull, true);
+                    }
                 }
                 else
                 {
@@ -383,17 +495,18 @@
 
                     if (subMemberAttribute != null)
                     {
-                        var methodName = subMemberAttribute.IsList ? "DeconstructSubDTOCollection" : "DeconstructSubDTO";
+                        var methodName = subMemberAttribute.IsList ? "DeconstructDTOCollection" : "DeconstructDTO";
                         var parameterType = subMemberAttribute.IsList ? entityProperty.PropertyType.GetGenericArguments()[0] : entityProperty.PropertyType;
 
-                        if (IsSubLevelAllowed() && !IsParentType(parameterType))
+                        if (!IsParentType(parameterType))
                         {
                             MethodInfo deconstructMethod = typeof(Extensions).GetExtensionMethod(methodName).MakeGenericMethod(parameterType);
-                            dtoValue = deconstructMethod.Invoke(null, new[] { dtoProperty.GetValue(dtoObject), entityType, allowedSubLevels, currentSubLevel + 1 });
+                            dtoValue = deconstructMethod.Invoke(null, new[] { dtoProperty.GetValue(dtoObject), entityParentTypes });
                         }
                         else
                         {
                             dtoValue = null;
+                            AddToTransferReport(dtoProperty.Name, transferName, Constants.TransferSkipped, true);
                         }
                     }
                     else
@@ -401,10 +514,16 @@
                         dtoValue = dtoProperty.GetValue(dtoObject);
                     }
 
-                    entityProperty.SetValue(entityObject, dtoValue);
+                    if (dtoValue != null)
+                    {
+                        entityProperty.SetValue(entityObject, dtoValue);
+                        AddToTransferReport(dtoProperty.Name, transferName, Constants.TransferCompleted, true);
+                    }
+                    else
+                    {
+                        AddToTransferReport(dtoProperty.Name, transferName, Constants.ValueWasNull, true);
+                    }
                 }
-
-                AddToTransferReport(dtoProperty.Name, transferName, Constants.TRANSFER_COMPLETED, true);
             }
             catch (Exception ex)
             {
@@ -415,11 +534,11 @@
             return true;
         }
 
-        private bool IsSubLevelAllowed()
-        {
-            return currentSubLevel < allowedSubLevels;
-        }
-
+        /// <summary>
+        /// Gets the name of the member being transferred.
+        /// </summary>
+        /// <param name="memberInfo">The member information.</param>
+        /// <returns></returns>
         protected string GetTransferMemberName(MemberInfo memberInfo)
         {
             var transferNameAttribute = memberInfo.GetCustomAttribute(typeof(TransferMemberNameAttribute));
@@ -434,6 +553,9 @@
             }
         }
 
+        /// <summary>
+        /// Initialises the member collections.
+        /// </summary>
         protected void InitialiseMemberCollections()
         {
             entityInfo.Properties = entityType.GetProperties();
@@ -442,6 +564,13 @@
             dtoInfo.Fields = dtoType.GetFields();
         }
 
+        /// <summary>
+        /// Determines whether the specified member is transferrable
+        /// </summary>
+        /// <param name="memberInfo">The member information.</param>
+        /// <returns>
+        ///   <c>true</c> if the member is tranferrable; otherwise, <c>false</c>.
+        /// </returns>
         protected bool IsTransferrableMember(MemberInfo memberInfo)
         {
             bool isNonTransferrable = memberInfo.GetCustomAttribute(typeof(NonTransferrableMemberAttribute)) != null;
@@ -476,36 +605,26 @@
             }
         }
 
-        private bool DtoToEntityTransferCheck(MemberInfo memberInfo)
-        {
-            bool nonTransferrable = memberInfo.GetCustomAttribute(typeof(NonTransferrableMemberAttribute)) != null;
-            bool transferrable = memberInfo.GetCustomAttribute(typeof(TransferrableMemberAttribute)) != null;
-            bool subMemberAttribute = memberInfo.GetCustomAttribute(typeof(TransferrableSubMemberAttribute)) != null;
-
-            if (transferAllMembers && nonTransferrable)
-            {
-                return false;
-            }
-            else if (subMemberAttribute || transferrable || transferAllMembers)
-            {
-                return true;
-            }
-            else
-            {
-                return false;
-            }
-        }
-
+        /// <summary>
+        /// Sets a value indicating whether untransferred members should be ignored.
+        /// </summary>
         protected void SetIgnoreUntranferredMembers()
         {
             ignoreUntransferredMembers = dtoType.GetCustomAttribute(typeof(IgnoreUntransferredMembersAttribute)) != null;
         }
 
+        /// <summary>
+        /// Sets a value indicating whether all members should be transferred except this marked with the NonTransferrableMember attribute
+        /// </summary>
         protected void SetTransferAllMembers()
         {
             transferAllMembers = dtoType.GetCustomAttribute(typeof(TransferAllMembersAttribute)) != null;
         }
 
+        /// <summary>
+        /// Transfers the field.
+        /// </summary>
+        /// <param name="dtoField">The dto field.</param>
         protected void TransferField(FieldInfo dtoField)
         {
             bool transferred;
@@ -522,10 +641,13 @@
             if (!transferred)
             {
                 string transferName = GetTransferMemberName(dtoField);
-                AddToTransferReport(dtoField.Name, transferName, Constants.NO_MATCHING_MEMBER_FOUND, false);
+                AddToTransferReport(dtoField.Name, transferName, Constants.NoMatchingMemberFound, false);
             }
         }
 
+        /// <summary>
+        /// Transfers the fields.
+        /// </summary>
         protected void TransferFields()
         {
             foreach (var dtoField in dtoInfo.Fields)
@@ -537,6 +659,10 @@
             }
         }
 
+        /// <summary>
+        /// Transfers the members.
+        /// </summary>
+        /// <exception cref="Exception"></exception>
         protected void TransferMembers()
         {
             TransferProperties();
@@ -544,10 +670,13 @@
 
             if (transferReport.Any(r => r.Success == false))
             {
-                throw new Exception();
+                //throw new Exception();
             }
         }
 
+        /// <summary>
+        /// Transfers the properties.
+        /// </summary>
         protected void TransferProperties()
         {
             foreach (var dtoProperty in dtoInfo.Properties)
@@ -559,6 +688,10 @@
             }
         }
 
+        /// <summary>
+        /// Transfers the property.
+        /// </summary>
+        /// <param name="dtoProperty">The dto property.</param>
         protected void TransferProperty(PropertyInfo dtoProperty)
         {
             bool transferred = DtoPropertyToEntityProperty(dtoProperty);
@@ -573,7 +706,26 @@
             if (!transferred)
             {
                 string transferName = GetTransferMemberName(dtoProperty);
-                AddToTransferReport(dtoProperty.Name, transferName, Constants.NO_MATCHING_MEMBER_FOUND, false);
+                AddToTransferReport(dtoProperty.Name, transferName, Constants.NoMatchingMemberFound, false);
+            }
+        }
+
+        /// <summary>
+        /// Determines whether the current type is already a parent of the source type.
+        /// </summary>
+        /// <param name="parameterType">Type of the parameter.</param>
+        /// <returns>
+        ///   <c>true</c> if [is parent type] [the specified parameter type]; otherwise, <c>false</c>.
+        /// </returns>
+        protected bool IsParentType(Type parameterType)
+        {
+            if (transferDirection == TransferDirections.EntityToDto)
+            {
+                return dtoParentTypes.Contains(parameterType);
+            }
+            else
+            {
+                return entityParentTypes.Contains(parameterType);
             }
         }
 
